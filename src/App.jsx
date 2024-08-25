@@ -6,6 +6,7 @@ import Card from "@mui/material/Card";
 import { Button, Typography, IconButton } from "@mui/material";
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { ethers } from "ethers";
 import {
   Keypair,
   PublicKey,
@@ -19,9 +20,10 @@ window.Buffer = Buffer;
 
 function App() {
   const [mnemonic, setMnemonic] = useState("");
-  const [wallets, setWallets] = useState([]);
+  const [SOLwallets, setSOLwallets] = useState([]);
+  const [ETHwallets, setETHwallets] = useState([]);
 
-  const generateWallet = async () => {
+  const generateSOLWallet = async () => {
     if (!mnemonic) {
       alert("Please generate or enter a mnemonic first!");
       return;
@@ -29,7 +31,7 @@ function App() {
 
     const seed = bip39.mnemonicToSeedSync(mnemonic, "SEcRET");
     const hd = HDKey.fromMasterSeed(seed.toString("hex"));
-    const walletIndex = wallets.length;
+    const walletIndex = SOLwallets.length;
     const path = `m/44'/501'/${walletIndex}'/0'`;
 
     const derivedKey = hd.derive(path);
@@ -44,26 +46,70 @@ function App() {
       showBalance: false,
     };
 
-    setWallets([...wallets, wallet]);
+    setSOLwallets([...SOLwallets, wallet]);
   };
 
-  const checkBalance = async (wallet) => {
-    const connection = new Connection(
-      "https://api.devnet.solana.com",
-      "confirmed"
-    );
-    const balance = await connection.getBalance(
-      new PublicKey(wallet.publicKey)
-    );
-    const balanceInSOL = balance / LAMPORTS_PER_SOL;
+  const generateETHWallet = async () => {
+    if (!mnemonic) {
+      alert("Please generate or enter a mnemonic first!");
+      return;
+    }
 
-    setWallets((prevWallets) =>
-      prevWallets.map((w) =>
-        w.publicKey === wallet.publicKey
-          ? { ...w, balance: balanceInSOL, showBalance: true }
-          : w
-      )
-    );
+    const walletIndex = ETHwallets.length;
+    const path = `m/44'/60'/${walletIndex}'/0'`;
+    const wallet = ethers.Wallet.fromPhrase(mnemonic, path);
+    const walletObject = {
+      publicKey: wallet.address,
+      privateKey: wallet.privateKey,
+      balance: null,
+      showBalance: false,
+    };
+
+    setETHwallets([...ETHwallets, walletObject]);
+  };
+
+  const checkSOLBalance = async (wallet) => {
+    try {
+      const connection = new Connection(
+        "https://api.devnet.solana.com",
+        "confirmed"
+      );
+      const balance = await connection.getBalance(
+        new PublicKey(wallet.publicKey)
+      );
+      const balanceInSOL = balance / LAMPORTS_PER_SOL;
+
+      setSOLwallets((prevWallets) =>
+        prevWallets.map((w) =>
+          w.publicKey === wallet.publicKey
+            ? { ...w, balance: balanceInSOL, showBalance: true }
+            : w
+        )
+      );
+    } catch (error) {
+      console.error("Error fetching SOL balance:", error);
+    }
+  };
+
+  const checkETHBalance = async (wallet) => {
+    try {
+      const provider = new ethers.InfuraProvider(
+        "mainnet",
+        import.meta.env.VITE_INFURA_ID
+      );
+      const balance = await provider.getBalance(wallet.publicKey);
+      const balanceInETH = ethers.formatEther(balance);
+
+      setETHwallets((prevWallets) =>
+        prevWallets.map((w) =>
+          w.publicKey === wallet.publicKey
+            ? { ...w, balance: balanceInETH, showBalance: true }
+            : w
+        )
+      );
+    } catch (error) {
+      console.error("Error fetching ETH balance:", error);
+    }
   };
 
   const copyToClipboard = (text) => {
@@ -71,8 +117,16 @@ function App() {
     alert("Copied to clipboard!");
   };
 
-  const deleteWallet = (publicKey) => {
-    setWallets(wallets.filter((wallet) => wallet.publicKey !== publicKey));
+  const deleteSOLwallet = (publicKey) => {
+    setSOLwallets(
+      SOLwallets.filter((wallet) => wallet.publicKey !== publicKey)
+    );
+  };
+
+  const deleteETHwallet = (publicKey) => {
+    setETHwallets(
+      ETHwallets.filter((wallet) => wallet.publicKey !== publicKey)
+    );
   };
 
   return (
@@ -94,14 +148,15 @@ function App() {
           alignItems: "center",
           padding: "20px",
           width: "100%",
-          maxWidth: "800px",
+          maxWidth: "850px",
+          minHeight: "150px",
           boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
           borderRadius: "10px",
           backgroundColor: "#fff",
         }}
       >
         <Typography variant="h4" style={{ marginBottom: "20px" }}>
-          Solana Wallet Generator
+          SWALT
         </Typography>
 
         <Button
@@ -145,17 +200,27 @@ function App() {
             </IconButton>
           </div>
         )}
+        <div style={{ display: "flex", gap: "5px" }}>
+          <Button
+            onClick={generateSOLWallet}
+            variant="contained"
+            color="primary"
+            style={{ marginBottom: "20px" }}
+          >
+            Generate SOL Wallet
+          </Button>
 
-        <Button
-          onClick={generateWallet}
-          variant="contained"
-          color="primary"
-          style={{ marginBottom: "20px" }}
-        >
-          Generate Wallet
-        </Button>
+          <Button
+            onClick={generateETHWallet}
+            variant="contained"
+            color="primary"
+            style={{ marginBottom: "20px" }}
+          >
+            Generate ETH Wallet
+          </Button>
+        </div>
 
-        {wallets.map((wallet, index) => (
+        {SOLwallets.map((wallet, index) => (
           <div
             key={index}
             style={{
@@ -169,14 +234,12 @@ function App() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <Typography variant="h6">
-                Solana Wallet {index + 1}
-              </Typography>
+              <Typography variant="h6">Solana Wallet {index + 1}</Typography>
               <IconButton
-                onClick={() => deleteWallet(wallet.publicKey)}
+                onClick={() => deleteSOLwallet(wallet.publicKey)}
                 color="secondary"
               >
-                <DeleteIcon  />
+                <DeleteIcon />
               </IconButton>
             </div>
             <Typography variant="body2" style={{ marginBottom: "5px" }}>
@@ -199,7 +262,7 @@ function App() {
             </IconButton>
 
             <Button
-              onClick={() => checkBalance(wallet)}
+              onClick={() => checkSOLBalance(wallet)}
               variant="outlined"
               color="primary"
               style={{ marginTop: "10px", width: "100%" }}
@@ -213,6 +276,66 @@ function App() {
                 style={{ fontWeight: "bold", marginTop: "10px" }}
               >
                 Balance: {wallet.balance} SOL
+              </Typography>
+            )}
+          </div>
+        ))}
+
+        {ETHwallets.map((wallet, index) => (
+          <div
+            key={index}
+            style={{
+              width: "100%",
+              marginBottom: "20px",
+              padding: "10px",
+              border: "1px solid #ddd",
+              borderRadius: "5px",
+              backgroundColor: "#f9f9f9",
+              position: "relative",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <Typography variant="h6">Ethereum Wallet {index + 1}</Typography>
+              <IconButton
+                onClick={() => deleteETHwallet(wallet.publicKey)}
+                color="secondary"
+              >
+                <DeleteIcon />
+              </IconButton>
+            </div>
+            <Typography variant="body2" style={{ marginBottom: "5px" }}>
+              Public Key: {wallet.publicKey}
+            </Typography>
+            <IconButton
+              onClick={() => copyToClipboard(wallet.publicKey)}
+              style={{ position: "absolute", right: "10px", top: "40px" }}
+            >
+              <FileCopyOutlinedIcon />
+            </IconButton>
+            <Typography variant="body2" style={{ marginBottom: "10px" }}>
+              Private Key: {wallet.privateKey}
+            </Typography>
+            <IconButton
+              onClick={() => copyToClipboard(wallet.privateKey)}
+              style={{ position: "absolute", right: "10px", top: "70px" }}
+            >
+              <FileCopyOutlinedIcon />
+            </IconButton>
+
+            <Button
+              onClick={() => checkETHBalance(wallet)}
+              variant="outlined"
+              color="primary"
+              style={{ marginTop: "10px", width: "100%" }}
+            >
+              Check Balance
+            </Button>
+            {wallet.showBalance && (
+              <Typography
+                variant="body2"
+                style={{ fontWeight: "bold", marginTop: "10px" }}
+              >
+                Balance: {wallet.balance} ETH
               </Typography>
             )}
           </div>
